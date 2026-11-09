@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, Request, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import AuthenticatedContext, get_current_context, get_db
+from app.api.dependencies.auth import AuthenticatedContext, get_current_context
+from app.api.dependencies.database import get_db
 from app.core.redis import get_redis
 from app.schemas.auth import (
     AuthSuccessResponse,

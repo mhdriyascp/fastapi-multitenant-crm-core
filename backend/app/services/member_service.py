@@ -1,7 +1,6 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -10,6 +9,11 @@ from app.core.config import settings
 from app.core.constants import ROLE_PLATFORM_ADMIN
 from app.core.email import EmailService
 from app.core.enums import MembershipStatus, RoleAuditAction, UserStatus
+from app.core.exceptions import (
+    BusinessRuleViolationException,
+    EntityConflictException,
+    EntityNotFoundException,
+)
 from app.models.membership_role import MembershipRole
 from app.models.role import Role
 from app.models.role_assignment_audit import RoleAssignmentAudit
@@ -96,10 +100,7 @@ class MemberService:
         )
         tenant = tenant_query.scalar_one_or_none()
         if not tenant:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Tenant workspace not found.",
-            )
+            raise EntityNotFoundException("Tenant", tenant_id)
 
         # 2. Resolve Inviter details (for email display)
         inviter_query = await self.db.execute(
@@ -139,10 +140,7 @@ class MemberService:
             )
         )
         if existing_membership.scalar_one_or_none():
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="User is already a member of this workspace.",
-            )
+            raise EntityConflictException("User is already a member of this workspace.")
 
         # 5. Create TenantMembership
         membership = TenantMembership(
@@ -168,9 +166,8 @@ class MemberService:
         roles = roles_query.scalars().all()
 
         if not roles:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"None of the specified roles {payload.role_codes} are valid for this workspace.",
+            raise BusinessRuleViolationException(
+                f"None of the specified roles {payload.role_codes} are valid for this workspace."
             )
 
         assigned_role_summaries: list[RoleSummary] = []
@@ -252,16 +249,10 @@ class MemberService:
         membership = membership_query.scalar_one_or_none()
 
         if not membership:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Membership record not found.",
-            )
+            raise EntityNotFoundException("TenantMembership", membership_id)
 
         if membership.user_id == actor_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="You cannot remove yourself from the workspace.",
-            )
+            raise BusinessRuleViolationException("You cannot remove yourself from the workspace.")
 
         now = datetime.now(UTC)
         membership.deleted_at = now
@@ -317,17 +308,11 @@ class MemberService:
         )
         membership = (await self.db.execute(query)).scalar_one_or_none()
         if not membership:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Membership record not found.",
-            )
+            raise EntityNotFoundException("TenantMembership", membership_id)
 
         # 2. Prevent self-demotion/promotion if modifying own membership
         if membership.user_id == actor_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="You cannot modify your own roles.",
-            )
+            raise BusinessRuleViolationException("You cannot modify your own roles.")
 
         # 3. Resolve target roles
         roles_query = await self.db.execute(
@@ -341,10 +326,7 @@ class MemberService:
         new_roles = {r.code: r for r in roles_query.scalars().all()}
         missing_codes = set(payload.role_codes) - set(new_roles.keys())
         if missing_codes:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid or inactive role codes: {list(missing_codes)}",
-            )
+            raise BusinessRuleViolationException(f"Invalid or inactive role codes: {list(missing_codes)}")
 
         current_role_codes = {
             mr.role.code: mr for mr in membership.membership_roles if mr.role

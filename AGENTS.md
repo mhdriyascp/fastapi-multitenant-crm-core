@@ -10,7 +10,11 @@ These are engineering standards, not claims that all existing code already confo
 - Maintain a modular monolith with clear domain boundaries. Use explicit services or interfaces for cross-domain communication; do not couple domains through direct database joins.
 - Preserve the established architecture. Avoid circular dependencies, parallel patterns, microservices, distributed architecture, or unnecessary abstractions unless explicitly approved.
 - Keep backend responsibilities separated:
-  - `backend/app/api/v1/endpoints/`: flat HTTP endpoint modules. Validate requests, declare endpoint permissions, delegate to services, and return Pydantic response models. Keep workflows and data queries out of handlers.
+  - `backend/app/api/auth/` and `backend/app/api/health/`: shared authentication and health endpoints.
+  - `backend/app/api/tenant/v1/endpoints/` and `backend/app/api/tenant/v2/endpoints/`: tenant-version-specific flat HTTP endpoint modules. Validate requests, declare endpoint permissions, delegate to services, and return Pydantic response models. Keep workflows and data queries out of handlers.
+  - `backend/app/api/platform/v1/endpoints/`: platform control-plane endpoints, grouped by responsibility and independently versioned from tenant APIs.
+  - `backend/app/api/dependencies/`: shared authentication, database, and pagination dependencies. `backend/app/api/deps.py` is a compatibility re-export; prefer the dedicated modules for new imports.
+  - Keep tenant APIs under configured `/api/vN` prefixes, shared authentication at `/auth`, health at `/health`, and platform operations under `/platform/vN`. Preserve existing client paths through deprecated aliases during migrations.
   - `backend/app/services/`: business rules, authorization, transaction orchestration, repository coordination, outbox coordination, and domain exceptions. Do not accept or return raw HTTP request/response objects or implement SQLAlchemy queries here.
   - `backend/app/repositories/`: SQLAlchemy queries and persistence, with explicit tenant scope. Keep HTTP behavior and business workflows out.
   - `backend/app/models/`: SQLAlchemy 2.0 typed ORM models, relationships, constraints, indexes, and foreign keys; keep these separate from Pydantic schemas.
@@ -35,7 +39,7 @@ These are engineering standards, not claims that all existing code already confo
 
 ## 4. Authorization and audit
 
-- Use canonical dot-separated permissions such as `crm.lead.create`, `crm.lead.read`, `crm.lead.update`, and `crm.lead.delete`. Reuse permission dependencies/utilities and enforce authorization at protected API boundaries and for sensitive business operations.
+- Use canonical dot-separated permissions such as `iam.membership.read`. Reuse permission dependencies/utilities and enforce authorization at protected API boundaries and for sensitive business operations.
 - `tenant_id IS NULL` identifies global roles; a populated `tenant_id` identifies custom tenant roles. Enforce role-code uniqueness with appropriate PostgreSQL partial indexes for each scope.
 - Prevent cross-tenant access, privilege escalation, and tenant modification of global roles without authorized platform-level privileges. Frontend permission checks are UX only.
 - Record role assignment/revocation audit details, including `performed_at`, `action`, `reason`, and relevant actor, role, and target references. Do not silently change role assignments.

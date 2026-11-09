@@ -1,3 +1,5 @@
+"""Pydantic schemas for tenant workspace member management."""
+
 from datetime import datetime
 from uuid import UUID
 
@@ -7,37 +9,47 @@ from app.core.enums import MembershipStatus
 
 
 class RoleSummary(BaseModel):
-    id: UUID
-    code: str
-    name: str
+    """Summary of a system or custom role assigned to a workspace member."""
+
+    id: UUID = Field(..., description="Internal role primary key")
+    public_id: UUID | None = Field(default=None, description="External public identifier (UUIDv4)")
+    code: str = Field(..., description="Machine-readable role code (e.g. 'org_admin')")
+    name: str = Field(..., description="Human-readable role name (e.g. 'Organization Administrator')")
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class MemberUserSummary(BaseModel):
-    id: UUID
-    public_id: UUID
-    email: EmailStr
-    first_name: str
-    last_name: str
+    """Public profile projection of a member user."""
+
+    id: UUID = Field(..., description="Internal user ID")
+    public_id: UUID = Field(..., description="External public identifier (UUIDv4)")
+    email: EmailStr = Field(..., description="Member email address")
+    first_name: str = Field(..., description="Given name")
+    last_name: str = Field(..., description="Family name")
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class MemberResponse(BaseModel):
-    membership_id: UUID
-    status: MembershipStatus
-    joined_at: datetime | None
-    user: MemberUserSummary
-    roles: list[RoleSummary]
+    """Envelope representation of a workspace tenant membership."""
+
+    membership_id: UUID = Field(..., description="Internal membership primary key")
+    public_id: UUID | None = Field(default=None, description="External public identifier (UUIDv4)")
+    status: MembershipStatus = Field(..., description="Current membership lifecycle state")
+    joined_at: datetime | None = Field(default=None, description="Timestamp of invitation acceptance")
+    user: MemberUserSummary = Field(..., description="Associated user identity")
+    roles: list[RoleSummary] = Field(default_factory=list, description="Roles granted to the member")
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class InviteMemberRequest(BaseModel):
+    """Request payload for inviting or adding a user to a workspace."""
+
     email: EmailStr = Field(..., description="Email address to invite")
-    first_name: str = Field(..., min_length=1, max_length=100)
-    last_name: str = Field(..., min_length=1, max_length=100)
+    first_name: str = Field(..., min_length=1, max_length=100, description="Legal given name")
+    last_name: str = Field(..., min_length=1, max_length=100, description="Legal family name")
     role_codes: list[str] = Field(
         default=["member"],
         description="List of role codes to assign (e.g. ['member'], ['org_admin'])",
@@ -45,4 +57,10 @@ class InviteMemberRequest(BaseModel):
 
 
 class UpdateMemberRolesRequest(BaseModel):
-    role_codes: list[str] = Field(..., min_length=1, description="New list of role codes")
+    """Request payload for updating member role assignments."""
+
+    role_codes: list[str] = Field(
+        ...,
+        min_length=1,
+        description="New replacement list of role codes to assign to the member",
+    )

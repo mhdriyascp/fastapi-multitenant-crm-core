@@ -1,0 +1,255 @@
+# 🏢 Enterprise CRM & IAM
+
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![SQLAlchemy 2.0](https://img.shields.io/badge/SQLAlchemy-2.0%20(Async)-d71f00.svg)](https://www.sqlalchemy.org/)
+[![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16%20(pgvector)-336791.svg?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Redis 7](https://img.shields.io/badge/Redis-7-dc382d.svg?logo=redis&logoColor=white)](https://redis.io/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.4.5-black.svg?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![uv](https://img.shields.io/badge/Package%20Manager-Astral%20uv-DE5FE9.svg)](https://github.com/astral-sh/uv)
+
+> A production-grade, multi-tenant B2B SaaS CRM backend engineered for high security, strict data isolation, and auditable enterprise compliance.
+
+Built with **FastAPI · SQLAlchemy 2.0 (Async) · PostgreSQL 16 (pgvector) · Redis 7 · Next.js 16 (App Router)**.
+
+---
+
+## 📑 Table of Contents
+
+- [Architectural Topology](#-architectural-topology)
+- [Key Architectural Pillars](#-key-architectural-pillars)
+- [Repository Structure](#-repository-structure)
+- [Quick Start](#-quick-start)
+- [Active API Routes](#-active-api-routes)
+- [Technology Stack](#-technology-stack)
+- [Comprehensive Documentation](#-comprehensive-documentation)
+- [AI Agent Instructions](#-ai-agent-instructions)
+
+---
+
+## 🏛️ Architectural Topology
+
+```mermaid
+flowchart TD
+    FE["🖥️ Frontend App\nNext.js 16 · React 19 · TypeScript\n(:3000)"]
+    API["⚙️ FastAPI Monolith\nPython 3.12 · Uvicorn\n(:8000)"]
+    
+    subgraph Gateways["API Gateways & Endpoints"]
+        AUTH["🔐 Auth Router\n/auth/*"]
+        V1["🏢 Versioned CRM APIs\n/api/v1/* · /api/v2/*"]
+        PLATFORM["🛡️ Platform Control Plane\n/platform/v1/*"]
+        HEALTH["💚 System Health\n/health"]
+    end
+
+    subgraph CoreEngine["Application Core & Services"]
+        SVC["📦 Domain Services\nAuth · Member · PlatformAdmin"]
+        REPO["🗂️ Repository Layer\nPlatformAdminRepository"]
+        MODELS["🗃️ SQLAlchemy 2.0 Models\nUUIDv7 PKs · AuditableLifecycleBase"]
+        OUTBOX["📬 Transactional Outbox\nemail_outbox"]
+    end
+
+    subgraph Datastores["Datastores & Infrastructure"]
+        DB[("🐘 PostgreSQL 16\n(pgvector)")]
+        REDIS[("⚡ Redis 7\nSessions · OTPs · ARQ Queue")]
+        WORKER["👷 ARQ Worker Process\nemail_worker.py"]
+        MAIL["📧 Mailpit / SMTP\n(:1025 / UI :8025)"]
+    end
+
+    FE -->|REST / JSON| API
+    API --> AUTH
+    API --> V1
+    API --> PLATFORM
+    API --> HEALTH
+    
+    AUTH --> SVC
+    V1 --> SVC
+    PLATFORM --> SVC
+    
+    SVC --> MODELS
+    SVC --> REPO
+    REPO --> MODELS
+    MODELS --> DB
+    
+    HEALTH -->|Direct Probe| DB
+    HEALTH -->|Direct Probe| REDIS
+
+    SVC -->|Atomic Enqueue| OUTBOX
+    OUTBOX --> DB
+    SVC -->|Push Job ID| REDIS
+
+    WORKER -->|Poll Jobs| REDIS
+    WORKER -->|Lock & Fetch| OUTBOX
+    WORKER -->|SMTP Deliver| MAIL
+```
+
+---
+
+## 🚀 Key Architectural Pillars
+
+* **Strict Tenant Data Isolation**: Enforces tenant scoping across all domain entities with `tenant_id` foreign keys and cascaded deletion.
+* **Dual Identifier Strategy**: Time-ordered **UUIDv7** internal keys for high-performance indexing, alongside randomized **UUIDv4** `public_id` identifiers for external API endpoints to prevent sequential enumeration attacks.
+* **Transactional Email Outbox**: Guarantees zero lost emails by staging outbound communications in a PostgreSQL `email_outbox` table within active database transactions, dispatched asynchronously via **ARQ** and Redis.
+* **Separated platform control plane**: `/platform/v1` is independently authorized from tenant APIs, requires verified MFA, and supports least-privilege operator roles, tenant settings, plan metadata, and audit events.
+* **Granular RBAC & Auditing**: Code-defined permission catalog, separate platform operator role assignments, tenant roles, and transactional before/after audit events for privileged control-plane changes.
+* **Intelligent Soft Deletion**: Timestamped soft deletes (`deleted_at`, `deleted_by_id`) paired with active lifecycle statuses, preserving historical data integrity.
+* **Next-Gen Python Tooling**: Managed with Astral **`uv`** for deterministic, sub-second dependency installation, linting, and execution.
+
+---
+
+## 🗂️ Repository Structure
+
+```mermaid
+flowchart LR
+    ROOT["📁 enterprise-crm/"]
+
+    ROOT --> BE["📁 backend/"]
+    ROOT --> FE["📁 frontend/"]
+    ROOT --> DOCS["📁 docs/"]
+    ROOT --> DC["🐳 compose.yaml"]
+    ROOT --> AG["📋 AGENTS.md"]
+
+    BE --> MAIN["📄 main.py\nApp factory & routes"]
+    BE --> ALM["📁 alembic/\nSchema migrations"]
+    BE --> SCR["📁 scripts/\nseed_rbac.py"]
+    BE --> APP["📁 app/"]
+
+    APP --> API["📁 api/\nRouters & dependencies"]
+    APP --> CORE["📁 core/\nConfig · Security · DB"]
+    APP --> MDL["📁 models/\nSQLAlchemy 2.0 ORM"]
+    APP --> SCH["📁 schemas/\nPydantic request/response"]
+    APP --> SVC2["📁 services/\nDomain business logic"]
+    APP --> WRK["📁 workers/\nARQ email worker"]
+    APP --> TPL["📁 templates/\nJinja2 email HTML"]
+
+    FE --> NEXT["📁 src/app/\nNext.js App Router"]
+
+    DOCS --> D0["00-overview/"]
+    DOCS --> D1["01-architecture/"]
+    DOCS --> D2["02-setup/"]
+    DOCS --> D3["03-modules/"]
+    DOCS --> D4["04-database/"]
+    DOCS --> D5["05-ai-and-standards/"]
+```
+
+---
+
+## ⚡ Quick Start
+
+### 1 — Start Infrastructure
+
+```sh
+docker compose up -d
+# Services: PostgreSQL :5432 | pgweb :8081 | Redis :6379 | Mailpit :1025 (Web UI :8025)
+```
+
+### 2 — Initialize & Start Backend
+
+```sh
+cd backend
+uv sync                                                           # Install dependencies
+uv run alembic upgrade head                                       # Apply database migrations
+uv run python scripts/seed_rbac.py                                # Seed permissions & system roles
+uv run uvicorn main:app --reload                                  # Launch API on http://localhost:8000
+```
+
+### 3 — Start ARQ Email Worker *(separate terminal)*
+
+```sh
+cd backend
+uv run worker backend.app.workers.email_worker.WorkerSettings
+```
+
+### 4 — Start Frontend Application
+
+```sh
+cd frontend
+npm ci
+npm run dev                                                       # Launch UI on http://localhost:3000
+```
+
+---
+
+## Current API Route Inventory
+
+The following table lists active shared authentication, tenant v1, and health endpoints. Platform endpoint details are in the [IAM and RBAC guide](docs/03-modules/iam-rbac.md#platform-control-plane).
+
+| Method | Endpoint | Authorization | Description |
+|---|---|---|---|
+| `POST` | `/auth/register` | Open | Create user; optionally provision initial tenant workspace |
+| `POST` | `/auth/login` | Open | Authenticate credentials; returns JWT tokens or MFA challenge |
+| `POST` | `/auth/refresh` | Open | Rotate refresh token and issue fresh access token |
+| `POST` | `/auth/logout` | Open | Revoke active user session |
+| `GET` | `/auth/me` | Bearer JWT | Retrieve profile of authenticated user |
+| `GET` | `/auth/workspaces` | Bearer JWT | List workspaces where user holds active membership |
+| `POST` | `/auth/switch-workspace` | Bearer JWT | Rotate active session and switch active tenant context |
+| `POST` | `/auth/password/forgot` | Open | Request password-reset email via transactional outbox |
+| `POST` | `/auth/password/reset` | Open | Confirm password reset and revoke all active sessions |
+| `POST` | `/auth/mfa/verify-otp` | Open | Complete login with 6-digit email OTP verification |
+| `POST` | `/auth/mfa/email/toggle` | Bearer JWT | Enable or disable email OTP multi-factor authentication |
+| `GET` | `/api/v1/iam/members/` | Bearer + `iam.membership.read` | List active workspace members |
+| `POST` | `/api/v1/iam/members/invite` | Bearer + `iam.membership.create` | Invite new user and assign workspace roles |
+| `DELETE` | `/api/v1/iam/members/{membership_id}` | Bearer + `iam.membership.delete` | Soft-delete workspace membership and revoke access |
+| `GET` | `/api/v1/iam/members/roles` | Bearer + `iam.role.read` | List assignable global and workspace roles |
+| `PATCH` | `/api/v1/iam/members/{membership_id}/roles` | Bearer + `iam.role_assignment.assign` | Update member role assignments with audit log |
+| `GET` | `/health` | Open | Readiness check probing PostgreSQL, Redis, and configured SMTP |
+
+📖 **Interactive API Documentation:**
+- Tenant v1 ReDoc / Scalar / OpenAPI: `/v1/redoc`, `/scalar/v1`, `/openapi/v1.json`
+- Tenant v2 ReDoc / Scalar / OpenAPI: `/v2/redoc`, `/scalar/v2`, `/openapi/v2.json`
+- Platform v1 ReDoc / Scalar / OpenAPI: `/platform/v1/redoc`, `/scalar/platform/v1`, `/openapi/platform/v1.json`
+
+---
+
+## 🌐 Current API Routes and Documentation
+
+- Tenant IAM: `/api/v1/iam/members/*`
+- Tenant APIs: `/api/v1/*` (member routes active) and `/api/v2/*` (no tenant routes registered yet)
+- Isolated platform administration: `/platform/v1/*` (verified MFA and platform permission required)
+- Platform operator onboarding: `/platform/v1/operator-candidates` lists eligible active accounts for role assignment
+- Readiness: `/health`
+- API v1 docs: `/v1/redoc`, `/scalar/v1`, and `/openapi/v1.json`
+- API v2 docs: `/v2/redoc`, `/scalar/v2`, and `/openapi/v2.json`
+- Platform API docs: `/platform/v1/redoc` and `/scalar/platform/v1`
+- Platform schema: `/openapi/platform/v1.json`
+- OpenAPI schemas: `/openapi/v1.json`, `/openapi/v2.json`, and `/openapi/platform/v1.json`
+
+## 🛠️ Technology Stack
+
+| Layer | Technology | Key Modules & Libraries |
+|---|---|---|
+| **Backend Framework** | Python 3.12, FastAPI | `fastapi`, `uvicorn`, `pydantic`, `pydantic-settings` |
+| **Persistence & ORM** | PostgreSQL 16, SQLAlchemy 2.0 | `asyncpg`, `alembic`, `uuid-utils` |
+| **Cache & Queue** | Redis 7, ARQ | `redis`, `arq` |
+| **Security & Auth** | Argon2id, PyJWT | `argon2-cffi`, `pyjwt` |
+| **Communication** | Async SMTP, Jinja2 | `aiosmtplib`, `jinja2` |
+| **Frontend Framework** | Next.js 16 (App Router), React 19 | `typescript`, `tailwindcss` |
+| **Local Infrastructure** | Docker, Compose | PostgreSQL (pgvector), Redis, Mailpit, pgweb |
+| **Tooling & Standards** | Astral `uv`, Ruff | `uv`, `ruff`, `pytest` |
+
+---
+
+## 📚 Comprehensive Documentation
+
+The repository features full topic-based documentation in [`docs/`](docs/README.md):
+
+| Topic | Document | Focus |
+|---|---|---|
+| **Overview** | [Product & Stack Overview](docs/00-overview/README.md) | Business context, capabilities, and complete tech stack |
+| **Architecture** | [System Architecture & Module Map](docs/01-architecture/system-overview.md) | Request flow, module responsibilities, and current gaps |
+| **Architecture** | [RBAC & Tenancy Specification](docs/01-architecture/rbac-and-tenancy.md) | Role models, permission hierarchy, and security guards |
+| **Architecture** | [ADR-001: Modular Monorepo](docs/01-architecture/repository-structure.md) | Architecture decision record on monorepo layout |
+| **Setup** | [Local Development & Configuration](docs/02-setup/local-development.md) | Environment setup, compose services, and configurations |
+| **Setup** | [Developer Command Cheat Sheet](docs/02-setup/developer-commands.md) | Commands for `uv`, npm, docker, migrations, and seeding |
+| **Modules** | [Identity & Authentication](docs/03-modules/identity-and-authentication.md) | Login, refresh tokens, MFA OTP, and password reset |
+| **Modules** | [IAM & RBAC Implementation](docs/03-modules/iam-rbac.md) | Member administration, role management, and audit trails |
+| **Modules** | [Email Outbox & Background Worker](docs/03-modules/email-and-background-work.md) | Transactional outbox staging and ARQ dispatcher |
+| **Database** | [Database Models & Migrations](docs/04-database/database-and-migrations.md) | SQLAlchemy schemas, Alembic revisions, lifecycle rules |
+| **Database** | [RBAC Seed Data Status](docs/04-database/seed-data.md) | `seed_rbac.py` idempotent synchronization process |
+| **AI Standards** | [AI Agent Instructions](docs/05-ai-and-standards/README.md) | Agent entry points and engineering rules |
+
+---
+
+## 🤖 AI Agent Instructions
+
+All AI-assisted development across this repository must adhere to the engineering standards and boundary rules in [`AGENTS.md`](AGENTS.md).

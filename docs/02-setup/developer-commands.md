@@ -17,6 +17,26 @@ uv run pytest
 
 No backend test files were present when this guide was written; add focused tests with new behavior. Run `uv run pytest <test-path>` for targeted validation where tests exist.
 
+## RBAC seed
+
+After running migrations, seed permissions and system roles into the database:
+
+```sh
+cd backend
+uv run python scripts/seed_rbac.py
+```
+
+This script is idempotent and safe to re-run. It inserts missing permissions and roles, syncs changed metadata, and prunes obsolete role→permission links. See [seed data](../04-database/seed-data.md) for details and production-environment guidance.
+
+## ARQ email worker
+
+```sh
+cd backend
+uv run worker backend.app.workers.email_worker.WorkerSettings
+```
+
+The worker processes outbox records from the Redis queue and delivers emails via SMTP. Requires PostgreSQL and Redis to be running. See [email outbox](../03-modules/email-and-background-work.md).
+
 ## Frontend
 
 The frontend scripts are defined in `frontend/package.json`:

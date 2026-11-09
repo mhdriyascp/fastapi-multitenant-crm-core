@@ -88,6 +88,13 @@ class Role(AuditableLifecycleBase):
         doc="Platform-defined role that cannot be deleted or modified by tenants",
     )
 
+    is_platform: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        doc="Platform operator role, separate from tenant-facing roles",
+    )
+
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,

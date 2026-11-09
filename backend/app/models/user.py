@@ -13,6 +13,12 @@ from app.core.enums import UserStatus
 from app.models.base import Base
 
 if TYPE_CHECKING:
+    from app.models.identity_master import (
+        UserCredential,
+        UserDevice,
+        UserPreference,
+        UserProfile,
+    )
     from app.models.tenant_membership import TenantMembership
     from app.models.user_mfa_method import UserMFAMethod
     from app.models.user_session import UserSession
@@ -61,12 +67,6 @@ class User(Base):
         index=True,
         nullable=False,
         doc="Primary login email address",
-    )
-
-    hashed_password: Mapped[str | None] = mapped_column(
-        String(255),
-        nullable=True,
-        doc="Argon2/bcrypt password hash; NULL for SSO/OAuth-only users",
     )
 
     # ---------------------------------------------------------------------------
@@ -152,7 +152,7 @@ class User(Base):
         index=True,
         doc="Soft-delete timestamp; NULL if active",
     )
-    
+
     status: Mapped[UserStatus] = mapped_column(
         SQLEnum(UserStatus, native_enum=False, length=30),
         default=UserStatus.ACTIVE,
@@ -160,7 +160,6 @@ class User(Base):
         index=True,
         doc="Account lifecycle state",
     )
-    
 
     # ---------------------------------------------------------------------------
     # Relationships
@@ -182,6 +181,28 @@ class User(Base):
         "UserMFAMethod",
         back_populates="user",
         cascade="all, delete-orphan",
+    )
+
+    profile: Mapped["UserProfile | None"] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
+    credentials: Mapped[list["UserCredential"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    devices: Mapped[list["UserDevice"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    preferences: Mapped["UserPreference | None"] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        uselist=False,
     )
 
     # ---------------------------------------------------------------------------

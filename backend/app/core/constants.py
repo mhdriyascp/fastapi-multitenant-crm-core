@@ -18,6 +18,18 @@ ROLE_VIEWER = "viewer"                  # Read-only tenant member
 # Format: (module, resource, action, code, description)
 # ---------------------------------------------------------------------------
 INITIAL_PERMISSIONS: list[tuple[str, str, str, str, str]] = [
+    # Platform control plane (operator-only)
+    ("Platform", "Tenant", "Read", "platform.tenant.read", "View tenant accounts"),
+    ("Platform", "Tenant", "Update", "platform.tenant.update", "Update tenant status and profile"),
+    ("Platform", "TenantSettings", "Manage", "platform.tenant_settings.manage", "Manage allowlisted tenant settings"),
+    ("Platform", "Plan", "Read", "platform.plan.read", "View platform subscription plans"),
+    ("Platform", "Plan", "Manage", "platform.plan.manage", "Manage plans and tenant plan assignments"),
+    ("Platform", "Permission", "Read", "platform.permission.read", "Browse the platform permission catalog"),
+    ("Platform", "Role", "Read", "platform.role.read", "View platform operator roles"),
+    ("Platform", "Role", "Manage", "platform.role.manage", "Create platform operator roles and grant permissions"),
+    ("Platform", "Operator", "Read", "platform.operator.read", "View platform operator accounts"),
+    ("Platform", "Operator", "Manage", "platform.operator.manage", "Assign platform operator roles"),
+    ("Platform", "Audit", "Read", "platform.audit.read", "Read platform administration audit events"),
     # 1. Global Users & Accounts
     ("IAM", "User", "Create", "iam.user.create", "Provision new user accounts directly"),
     ("IAM", "User", "Read", "iam.user.read", "View user profiles and basic identities"),

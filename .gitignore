@@ -6,6 +6,11 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+*credential*
+*credentials*
+*.pem
+*.key
+*.cert
 
 # Python & uv
 __pycache__/

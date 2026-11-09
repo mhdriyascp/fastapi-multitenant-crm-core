@@ -14,8 +14,12 @@ def register_exception_handlers(app: FastAPI) -> None:
     # 1. Handle Domain/Application Exceptions
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
+        headers = {}
+        if exc.status_code == 401:
+            headers["WWW-Authenticate"] = "Bearer"
         return JSONResponse(
             status_code=exc.status_code,
+            headers=headers if headers else None,
             content={
                 "error": {
                     "code": exc.code,

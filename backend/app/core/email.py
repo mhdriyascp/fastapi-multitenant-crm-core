@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from email.message import EmailMessage
 from importlib import import_module
+import logging
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -14,6 +15,8 @@ from jinja2.exceptions import TemplateError
 from redis.exceptions import RedisError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger("enterprise_crm.email")
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates" / "email"
 
@@ -69,8 +72,8 @@ class EmailService:
             pool = await get_arq_pool()
             await pool.enqueue_job("process_outbox_email", str(outbox.id))
         except RedisError as exc:
-            # Row remains in PENDING; background sweeper will pick it up
-            print(f"⚠️ Failed to enqueue email job to Redis: {exc}")
+            # Row remains in PENDING; background retry will pick it up
+            logger.warning(f"Failed to enqueue email job to Redis: {exc}")
 
         return outbox
 
@@ -122,8 +125,8 @@ class EmailService:
             outbox.sent_at = datetime.now(UTC)
             outbox.error_message = None
             await db.commit()
-            print(
-                f"📧 [EMAIL DELIVERED] To: {outbox.recipient} | Subject: '{outbox.subject}'"
+            logger.info(
+                f"[EMAIL DELIVERED] To: {outbox.recipient} | Subject: '{outbox.subject}'"
             )
 
         except (TemplateError, aiosmtplib.errors.SMTPException) as exc:
@@ -131,10 +134,10 @@ class EmailService:
             outbox.error_message = str(exc)
             if outbox.attempts >= outbox.max_attempts:
                 outbox.status = EmailOutboxStatus.FAILED.value
-                print(f"❌ [EMAIL PERMANENTLY FAILED] Outbox ID {outbox_id}: {exc}")
+                logger.error(f"[EMAIL PERMANENTLY FAILED] Outbox ID {outbox_id}: {exc}")
             else:
                 outbox.status = EmailOutboxStatus.PENDING.value
-                print(f"⚠️ [EMAIL RETRY SCHEDULED] Outbox ID {outbox_id}: {exc}")
+                logger.warning(f"[EMAIL RETRY SCHEDULED] Outbox ID {outbox_id}: {exc}")
             db.add(outbox)
             await db.commit()
             raise exc

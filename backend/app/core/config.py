@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
     API_V1_STR: str = "/api/v1"
+    API_V2_STR: str = "/api/v2"
 
     # ---------------------------------------------------------------------------
     # Base URLs

@@ -3,7 +3,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import AuthenticatedContext, RequirePermission, get_db
+from app.api.dependencies.auth import AuthenticatedContext, RequirePermission
+from app.api.dependencies.database import get_db
 from app.schemas.member import (
     InviteMemberRequest,
     MemberResponse,
@@ -24,7 +25,7 @@ async def list_workspace_members(
     context: AuthenticatedContext = Depends(RequirePermission("iam.membership.read")),
     db: AsyncSession = Depends(get_db),
 ) -> list[MemberResponse]:
-    """Retrieves all members belonging to the caller's active tenant workspace."""
+    """Retrieve all members belonging to the caller's active tenant workspace."""
     service = MemberService(db)
     return await service.list_members(tenant_id=context.tenant_id)
 
@@ -40,7 +41,7 @@ async def invite_workspace_member(
     context: AuthenticatedContext = Depends(RequirePermission("iam.membership.create")),
     db: AsyncSession = Depends(get_db),
 ) -> MemberResponse:
-    """Invites a user into the active workspace with assigned roles."""
+    """Invite a user into the active workspace with assigned roles."""
     service = MemberService(db)
     return await service.invite_member(
         tenant_id=context.tenant_id,
@@ -59,7 +60,7 @@ async def remove_workspace_member(
     context: AuthenticatedContext = Depends(RequirePermission("iam.membership.delete")),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """Revokes access for a workspace member."""
+    """Revoke access for a workspace member."""
     service = MemberService(db)
     await service.remove_member(
         tenant_id=context.tenant_id,
@@ -77,7 +78,7 @@ async def list_workspace_roles(
     context: AuthenticatedContext = Depends(RequirePermission("iam.role.read")),
     db: AsyncSession = Depends(get_db),
 ) -> list[RoleSummary]:
-    """Lists all roles that can be assigned to members in the caller's workspace."""
+    """List roles that can be assigned to members in the caller's workspace."""
     service = MemberService(db)
     return await service.list_assignable_roles(tenant_id=context.tenant_id)
 
@@ -90,10 +91,12 @@ async def list_workspace_roles(
 async def update_member_roles(
     membership_id: UUID,
     payload: UpdateMemberRolesRequest,
-    context: AuthenticatedContext = Depends(RequirePermission("iam.role_assignment.assign")),
+    context: AuthenticatedContext = Depends(
+        RequirePermission("iam.role_assignment.assign")
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> MemberResponse:
-    """Modifies the assigned roles for a workspace member and logs an audit trail."""
+    """Modify roles for a workspace member and record an audit trail."""
     service = MemberService(db)
     return await service.update_member_roles(
         tenant_id=context.tenant_id,

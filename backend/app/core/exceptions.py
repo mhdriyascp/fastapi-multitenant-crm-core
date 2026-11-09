@@ -50,3 +50,39 @@ class BusinessRuleViolationException(AppException):
             code=code,
             status_code=422,
         )
+
+
+class PermissionDeniedException(AppException):
+    """Raised when an actor lacks authority or permission for an operation."""
+
+    def __init__(self, message: str = "Access denied: insufficient permissions.", details: Any = None):
+        super().__init__(
+            message=message,
+            code="PERMISSION_DENIED",
+            status_code=403,
+            details=details,
+        )
+
+
+class AuthenticationException(AppException):
+    """Raised when authentication credentials or token are invalid or expired."""
+
+    def __init__(self, message: str = "Authentication failed.", details: Any = None):
+        super().__init__(
+            message=message,
+            code="AUTHENTICATION_FAILED",
+            status_code=401,
+            details=details,
+        )
+
+
+class RateLimitExceededException(AppException):
+    """Raised when request frequency or retry limit is exceeded."""
+
+    def __init__(self, message: str = "Rate limit or attempt limit exceeded.", details: Any = None):
+        super().__init__(
+            message=message,
+            code="TOO_MANY_REQUESTS",
+            status_code=429,
+            details=details,
+        )

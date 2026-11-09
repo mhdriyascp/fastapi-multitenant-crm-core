@@ -1,49 +1,117 @@
-# Enterprise CRM Documentation Hub
+# Enterprise CRM — Documentation Hub
 
-This documentation is organized by topic and reflects the current code. Where intended architecture differs from implemented behavior, the guides call out the gap rather than presenting a target as a fact.
+> Documentation is organized by topic and always reflects the **inspected implementation**. Where the intended architecture differs from what is currently built, guides call out the gap explicitly.
 
-```text
-docs/
-├── README.md
-├── 00-overview/
-├── 01-architecture/
-├── 02-setup/
-├── 03-modules/
-├── 04-database/
-└── 05-ai-and-standards/
+---
+
+## 🗺️ Documentation Map
+
+```mermaid
+flowchart LR
+    HUB["📚 docs/"]
+
+    HUB --> OV["00-overview/\nProduct & stack"]
+    HUB --> AR["01-architecture/\nSystem design"]
+    HUB --> SE["02-setup/\nLocal dev"]
+    HUB --> MO["03-modules/\nFeature guides"]
+    HUB --> DB["04-database/\nSchema & data"]
+    HUB --> AI["05-ai-and-standards/\nAgent rules"]
+
+    AR --> AR1["system-overview.md"]
+    AR --> AR2["rbac-and-tenancy.md"]
+    AR --> AR3["repository-structure.md"]
+
+    SE --> SE1["local-development.md"]
+    SE --> SE2["developer-commands.md"]
+
+    MO --> MO1["identity-and-authentication.md"]
+    MO --> MO2["iam-rbac.md"]
+    MO --> MO4["email-and-background-work.md"]
+
+    DB --> DB1["database-and-migrations.md"]
+    DB --> DB2["seed-data.md"]
 ```
+
+---
 
 ## 00 — Overview
 
-- [Product and technology overview](00-overview/README.md)
+| Document | Description |
+|---|---|
+| [Product and technology overview](00-overview/README.md) | What is built, the full tech stack, and current implementation status |
+
+---
 
 ## 01 — Architecture
 
-- [System architecture and module map](01-architecture/system-overview.md)
-- [ADR-001: Repository structure](01-architecture/ADR-001-repository-structure.md)
-- [RBAC and tenant architecture](01-architecture/rbac-and-tenancy.md)
+| Document | Description |
+|---|---|
+| [System architecture and module map](01-architecture/system-overview.md) | Repository layout, active route topology, request/data flow, and known gaps |
+| [RBAC and tenant architecture](01-architecture/rbac-and-tenancy.md) | Role model, permission resolution flow, and tenancy boundaries |
+| [ADR-001: Repository structure](01-architecture/repository-structure.md) | Architecture decision record for the monorepo layout |
+
+---
 
 ## 02 — Setup
 
-- [Local development and configuration](02-setup/local-development.md)
-- [Developer command cheat sheet](02-setup/developer-commands.md)
+| Document | Description |
+|---|---|
+| [Local development and configuration](02-setup/local-development.md) | Infrastructure services, environment variables, and application processes |
+| [Developer command cheat sheet](02-setup/developer-commands.md) | All `uv`, `npm`, `docker compose`, migration, seed, and worker commands |
+
+---
 
 ## 03 — Modules
 
-- [Identity and authentication](03-modules/identity-and-authentication.md)
-- [IAM and RBAC implementation](03-modules/iam-rbac.md)
-- [CRM leads](03-modules/crm-leads.md)
-- [Email outbox and background worker](03-modules/email-and-background-work.md)
+| Document | Description |
+|---|---|
+| [Identity and authentication](03-modules/identity-and-authentication.md) | Registration, login, MFA, password reset, session management |
+| [IAM and RBAC implementation](03-modules/iam-rbac.md) | Member management, role assignment, audit trail |
+| [Email outbox and background worker](03-modules/email-and-background-work.md) | Transactional email system, ARQ worker, delivery guarantees |
+
+---
 
 ## 04 — Database
 
-- [Database model and migrations](04-database/database-and-migrations.md)
-- [Seed data status](04-database/seed-data.md)
+| Document | Description |
+|---|---|
+| [Database model and migrations](04-database/database-and-migrations.md) | Persisted models, Alembic migration history, identifier and lifecycle patterns |
+| [Seed data and RBAC seeder](04-database/seed-data.md) | `seed_rbac.py` usage, idempotency, and operational guidance |
 
-## 05 — AI and standards
+---
 
-- [AI agent instruction entry points](05-ai-and-standards/README.md)
+## 05 — AI and Standards
 
-## Current implementation notes
+| Document | Description |
+|---|---|
+| [AI agent instructions](05-ai-and-standards/README.md) | Agent entry points and links to engineering standards |
 
-The backend is an early-stage modular monolith. Authentication and member administration use PostgreSQL, while leads use a process-local in-memory store and their router is not mounted. There is no dedicated `app/repositories/` package yet; authentication and member services currently contain ORM queries. See [system architecture](01-architecture/system-overview.md) for the verified route topology and gaps.
+---
+
+## 📌 Current Implementation Notes
+
+```mermaid
+flowchart TD
+    subgraph LIVE["✅ Implemented & Active"]
+        A1["Auth flows\n/auth/*"]
+        A2["Tenant API v1\n/api/v1/iam/members"]
+        A3["Versioned APIs\nTenant /api/v1 · /api/v2\nPlatform /platform/v1"]
+        A4["Email outbox\nInvitation · Password reset · MFA OTP"]
+        A5["Shared health check\n/health"]
+        A6["Versioned docs\nReDoc + Scalar"]
+        A7["Domain exceptions\nDecoupled from HTTPException"]
+    end
+
+    subgraph PARTIAL["⚠️ Exists but Not Mounted / Incomplete"]
+        B2["Repositories\nMember and platform repositories exist\nService adoption is partial"]
+        B3["Public IDs\nNot consistently used in all responses"]
+    end
+
+    subgraph TODO["🔲 Not Yet Implemented"]
+        C1["RBAC auto-seeding\nMust run seed_rbac.py manually"]
+        C2["Outbox sweeper\nStalled PENDING rows not auto-recovered"]
+        C3["Frontend CRM UI\nCurrently a health-status page only"]
+    end
+```
+
+The backend is an early-stage modular monolith. See [system architecture](01-architecture/system-overview.md) for the verified route topology and all known gaps.

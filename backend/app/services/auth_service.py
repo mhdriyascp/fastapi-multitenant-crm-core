@@ -4,11 +4,25 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+from redis.asyncio import Redis
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
 from app.core.config import settings
 from app.core.constants import ROLE_ORG_OWNER
 from app.core.email import EmailService
 from app.core.enums import MembershipStatus, MFAMethodType, TenantStatus, UserStatus
+from app.core.exceptions import (
+    AuthenticationException,
+    BusinessRuleViolationException,
+    EntityConflictException,
+    EntityNotFoundException,
+    PermissionDeniedException,
+    RateLimitExceededException,
+)
 from app.core.security import PasswordManager, TokenManager
+from app.models.identity_master import UserCredential
 from app.models.membership_role import MembershipRole
 from app.models.role import Role
 from app.models.tenant import Tenant
@@ -31,11 +45,6 @@ from app.schemas.auth import (
     WorkspaceItemResponse,
     WorkspaceRoleInfo,
 )
-from fastapi import HTTPException, status
-from redis.asyncio import Redis
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 
 class AuthService:
@@ -43,6 +52,15 @@ class AuthService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def _get_password_credential(self, user_id: UUID) -> UserCredential | None:
+        result = await self.db.execute(
+            select(UserCredential).where(
+                UserCredential.user_id == user_id,
+                UserCredential.credential_type == "password",
+            )
+        )
+        return result.scalar_one_or_none()
 
     async def register_user(
         self,
@@ -62,9 +80,8 @@ class AuthService:
             select(User.id).where(User.email == payload.email.lower().strip())
         )
         if existing_email.scalar_one_or_none():
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="An account with this email address already exists.",
+            raise EntityConflictException(
+                "An account with this email address already exists."
             )
 
         if payload.username:
@@ -72,16 +89,12 @@ class AuthService:
                 select(User.id).where(User.username == payload.username.strip())
             )
             if existing_username.scalar_one_or_none():
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="This username is already taken.",
-                )
+                raise EntityConflictException("This username is already taken.")
 
         # 2. Instantiate User
         user = User(
             email=payload.email.lower().strip(),
             username=payload.username.strip() if payload.username else None,
-            hashed_password=PasswordManager.hash_password(payload.password),
             first_name=payload.first_name.strip(),
             last_name=payload.last_name.strip(),
             status=UserStatus.ACTIVE,
@@ -90,12 +103,21 @@ class AuthService:
         )
         self.db.add(user)
         await self.db.flush()
+        self.db.add(
+            UserCredential(
+                user_id=user.id,
+                credential_type="password",
+                password_hash=PasswordManager.hash_password(payload.password),
+            )
+        )
 
         active_tenant_id: UUID | None = None
 
         # 3. Provision Initial Tenant if requested
         if payload.organization_name:
-            slug = re.sub(r"[^a-z0-9]+", "-", payload.organization_name.lower()).strip("-")
+            slug = re.sub(r"[^a-z0-9]+", "-", payload.organization_name.lower()).strip(
+                "-"
+            )
             tenant = Tenant(
                 name=payload.organization_name.strip(),
                 slug=f"{slug}-{user.id.hex[:6]}",
@@ -159,21 +181,23 @@ class AuthService:
             select(User).where(User.email == payload.email.lower().strip())
         )
         user = user_query.scalar_one_or_none()
+        credential = (
+            await self._get_password_credential(user.id) if user is not None else None
+        )
         if (
             user is None
             or user.status != UserStatus.ACTIVE
             or user.deleted_at is not None
-            or user.hashed_password is None
+            or credential is None
+            or credential.revoked_at is not None
+            or credential.password_hash is None
             or not PasswordManager.verify_password(
-                payload.password, user.hashed_password
+                payload.password, credential.password_hash
             )
         ):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            raise AuthenticationException("Invalid email or password.")
 
+        credential.last_used_at = datetime.now(UTC)
         active_tenant_id = payload.tenant_id
         if active_tenant_id is not None:
             membership_query = await self.db.execute(
@@ -192,9 +216,8 @@ class AuthService:
                 membership_query.scalar_one_or_none() is None
                 and not user.is_platform_admin
             ):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You do not have active access to this workspace.",
+                raise PermissionDeniedException(
+                    "You do not have active access to this workspace."
                 )
         elif not user.is_platform_admin:
             membership_query = await self.db.execute(
@@ -258,19 +281,13 @@ class AuthService:
         active_session = session_query.scalar_one_or_none()
 
         if not active_session:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or revoked refresh token.",
-            )
+            raise AuthenticationException("Invalid or revoked refresh token.")
 
         now = datetime.now(UTC)
         if active_session.expires_at <= now:
             active_session.revoked_at = now
             await self.db.flush()
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Session has expired. Please log in again.",
-            )
+            raise AuthenticationException("Session has expired. Please log in again.")
 
         user_query = await self.db.execute(
             select(User).where(User.id == active_session.user_id)
@@ -279,16 +296,15 @@ class AuthService:
         if not user or user.status != UserStatus.ACTIVE or user.deleted_at is not None:
             active_session.revoked_at = now
             await self.db.flush()
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User account is no longer active.",
-            )
+            raise PermissionDeniedException("User account is no longer active.")
 
         new_raw_token, new_token_hash = TokenManager.generate_refresh_token()
         active_session.refresh_token_hash = new_token_hash
         active_session.ip_address = client_ip or active_session.ip_address
         active_session.user_agent = user_agent or active_session.user_agent
-        active_session.expires_at = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        active_session.expires_at = now + timedelta(
+            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+        )
         await self.db.flush()
 
         access_token = TokenManager.create_access_token(
@@ -317,7 +333,9 @@ class AuthService:
             )
             .options(
                 selectinload(TenantMembership.tenant),
-                selectinload(TenantMembership.membership_roles).selectinload(MembershipRole.role),
+                selectinload(TenantMembership.membership_roles).selectinload(
+                    MembershipRole.role
+                ),
             )
         )
         result = await self.db.execute(query)
@@ -325,7 +343,11 @@ class AuthService:
 
         workspaces: list[WorkspaceItemResponse] = []
         for m in memberships:
-            if not m.tenant or m.tenant.status != TenantStatus.ACTIVE or m.tenant.deleted_at is not None:
+            if (
+                not m.tenant
+                or m.tenant.status != TenantStatus.ACTIVE
+                or m.tenant.deleted_at is not None
+            ):
                 continue
 
             roles: list[WorkspaceRoleInfo] = [
@@ -373,9 +395,8 @@ class AuthService:
         )
         membership = membership_query.scalar_one_or_none()
         if not membership and not user.is_platform_admin:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have active access to this workspace.",
+            raise PermissionDeniedException(
+                "You do not have active access to this workspace."
             )
 
         # 2. Validate current refresh token & session
@@ -390,9 +411,8 @@ class AuthService:
         active_session = session_query.scalar_one_or_none()
 
         if not active_session:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired session. Please log in again.",
+            raise AuthenticationException(
+                "Invalid or expired session. Please log in again."
             )
 
         # 3. Rotate session to point to the new tenant context
@@ -403,7 +423,9 @@ class AuthService:
         active_session.refresh_token_hash = new_token_hash
         active_session.ip_address = client_ip or active_session.ip_address
         active_session.user_agent = user_agent or active_session.user_agent
-        active_session.expires_at = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        active_session.expires_at = now + timedelta(
+            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+        )
         await self.db.flush()
 
         # 4. Mint new access token with target tenant_id claim
@@ -511,9 +533,7 @@ class AuthService:
         await redis.setex(redis_key, ttl_seconds, str(user.id))
 
         # Dynamic frontend reset URL from settings/.env
-        reset_link = (
-            f"{settings.FRONTEND_BASE_URL.rstrip('/')}/auth/reset-password?token={raw_token}"
-        )
+        reset_link = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/auth/reset-password?token={raw_token}"
 
         # Enqueue transactional outbox email record in PostgreSQL + ARQ
         user_display_name = f"{user.first_name} {user.last_name}".strip() or "there"
@@ -542,22 +562,23 @@ class AuthService:
 
         user_id_str = await redis.get(redis_key)
         if not user_id_str:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid, expired, or previously used password reset token.",
+            raise BusinessRuleViolationException(
+                "Invalid, expired, or previously used password reset token."
             )
 
         user_uuid = UUID(user_id_str)
         user_query = await self.db.execute(select(User).where(User.id == user_uuid))
         user = user_query.scalar_one_or_none()
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found.",
-            )
+            raise EntityNotFoundException("User", user_uuid)
 
         # Update password hash and mark timestamp
-        user.hashed_password = PasswordManager.hash_password(payload.new_password)
+        credential = await self._get_password_credential(user.id)
+        if credential is None:
+            credential = UserCredential(user_id=user.id, credential_type="password")
+            self.db.add(credential)
+        credential.password_hash = PasswordManager.hash_password(payload.new_password)
+        credential.revoked_at = None
         user.password_changed_at = datetime.now(UTC)
 
         # Invalidate all active sessions for this user (force re-login everywhere)
@@ -641,9 +662,8 @@ class AuthService:
         redis_key = f"mfa_pending:{payload.mfa_token}"
         data = await redis.get(redis_key)
         if not data:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="MFA challenge has expired or is invalid. Please log in again.",
+            raise AuthenticationException(
+                "MFA challenge has expired or is invalid. Please log in again."
             )
 
         try:
@@ -651,17 +671,15 @@ class AuthService:
             attempts = int(attempts_str)
         except (ValueError, AttributeError):
             await redis.delete(redis_key)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Corrupted MFA session. Please log in again.",
+            raise BusinessRuleViolationException(
+                "Corrupted MFA session. Please log in again."
             )
 
         # Guard against brute force (Max 5 attempts)
         if attempts >= 5:
             await redis.delete(redis_key)
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many incorrect OTP attempts. Please log in again.",
+            raise RateLimitExceededException(
+                "Too many incorrect OTP attempts. Please log in again."
             )
 
         # Constant-time comparison
@@ -670,10 +688,7 @@ class AuthService:
             ttl = await redis.ttl(redis_key)
             if ttl > 0:
                 await redis.setex(redis_key, ttl, new_val)
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid OTP verification code.",
-            )
+            raise AuthenticationException("Invalid OTP verification code.")
 
         # OTP is valid — remove challenge
         await redis.delete(redis_key)
@@ -688,9 +703,8 @@ class AuthService:
             or user.status != UserStatus.ACTIVE
             or user.deleted_at is not None
         ):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User account is inactive, suspended, or deleted.",
+            raise PermissionDeniedException(
+                "User account is inactive, suspended, or deleted."
             )
 
         user.last_login_at = datetime.now(UTC)
@@ -714,13 +728,16 @@ class AuthService:
         current_password: str,
     ) -> str:
         """Enables or disables Email OTP MFA for the authenticated user."""
-        if user.hashed_password is None or not PasswordManager.verify_password(
-            current_password, user.hashed_password
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Incorrect password confirmation.",
+        credential = await self._get_password_credential(user.id)
+        if (
+            credential is None
+            or credential.revoked_at is not None
+            or credential.password_hash is None
+            or not PasswordManager.verify_password(
+                current_password, credential.password_hash
             )
+        ):
+            raise BusinessRuleViolationException("Incorrect password confirmation.")
 
         query = await self.db.execute(
             select(UserMFAMethod).where(

@@ -46,7 +46,7 @@ class Permission(Base):
         String(100),
         nullable=False,
         index=True,
-        doc="Domain resource (e.g. 'Lead', 'Invoice', 'Employee')",
+        doc="Domain resource (e.g. 'Customer', 'Invoice', 'Employee')",
     )
 
     action: Mapped[str] = mapped_column(
@@ -60,7 +60,7 @@ class Permission(Base):
         unique=True,
         index=True,
         nullable=False,
-        doc="Canonical permission slug (e.g. 'crm.lead.create')",
+        doc="Canonical permission slug (e.g. 'iam.membership.read')",
     )
 
     description: Mapped[str | None] = mapped_column(

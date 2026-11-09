@@ -19,6 +19,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.1.8",
     "uvicorn[standard]>=0.30.0",
     "uuid-utils>=1.2.0",
+    "scalar-fastapi>=1.9.1",
 ]
 
 [dependency-groups]

@@ -5,12 +5,13 @@ import sys
 # Ensure backend root is on sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
 from app.core.constants import INITIAL_PERMISSIONS, SYSTEM_ROLES
 from app.models.permission import Permission
 from app.models.role import Role
 from app.models.role_permission import RolePermission
-from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
@@ -85,6 +86,7 @@ async def seed_roles_and_mappings(
                 code=role_def["code"],
                 description=role_def["description"],
                 is_system=role_def["is_system"],
+                is_platform=False,
                 is_active=True,
             )
             session.add(role)
@@ -94,6 +96,7 @@ async def seed_roles_and_mappings(
             # Sync name / description
             role.name = role_def["name"]
             role.description = role_def["description"]
+            role.is_platform = False
             await session.flush()
 
         # Determine target permission IDs for this role
