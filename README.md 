@@ -1,0 +1,16 @@
+# 🏢 FastAPI Multi-Tenant CRM Core (`fastapi-multitenant-crm-core`)
+
+> A robust, production-grade, multi-tenant B2B SaaS CRM backend engineered for high security, strict data isolation, and auditable enterprise compliance.
+
+Built with **FastAPI**, **SQLAlchemy 2.0 (Async)**, **PostgreSQL 16 (pgvector)**, and **Redis 7**, this platform follows a **Modular Monolith** and **Clean/Hexagonal Architecture** pattern. It serves as a single source of truth for business logic, RBAC security policies, and background automation.
+
+---
+
+### 🚀 Key Architectural Pillars
+
+* **Strict Tenant Data Isolation**: Enforces tenant scoping across all domain entities with `tenant_id` foreign keys and PostgreSQL Row-Level Security (RLS) readiness.
+* **Dual Identifier Strategy**: Uses time-ordered **UUIDv7** internally for high-performance B-tree indexing alongside random **UUIDv4** public identifiers exposed in API routes to prevent object enumeration.
+* **Transactional Email Outbox**: Guarantees zero email loss by staging outbound communications in a PostgreSQL outbox table within active DB transactions, dispatched asynchronously via **ARQ** and Redis.
+* **Granular RBAC & Audit Trails**: Hierarchical global and custom tenant roles, canonical permission codes (`module.resource.action`), and full immutable audit trails for SOC2/ISO compliance.
+* **Intelligent Soft Deletion**: Timestamped soft deletes paired with PostgreSQL **Partial Unique Indexes** (`WHERE deleted_at IS NULL`), preventing unique constraint collisions while preserving audit history.
+* **Next-Gen Python Tooling**: Managed entirely by Astral **`uv`** for reproducible, sub-second dependency resolution, testing, and container builds.

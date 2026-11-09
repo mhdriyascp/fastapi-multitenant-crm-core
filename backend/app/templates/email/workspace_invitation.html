@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}You've been invited to join {{ tenant_name }} - {{ project_name }}{% endblock %}
+
+{% block content %}
+<h2 style="margin: 0 0 16px 0; font-size: 20px; color: #0f172a;">You've Been Invited!</h2>
+
+<p>Hello <strong>{{ invitee_name }}</strong>,</p>
+
+<p>
+  <strong>{{ inviter_name }}</strong> has invited you to join the organization <strong>{{ tenant_name }}</strong> on {{ project_name }} with the role:
+</p>
+
+<div style="margin: 16px 0;">
+  {% for role in roles %}
+    <span style="display: inline-block; background-color: #e2e8f0; color: #0f172a; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 9999px; margin-right: 6px;">
+      {{ role }}
+    </span>
+  {% endfor %}
+</div>
+
+<p>Click below to accept the invitation and access your workspace dashboard:</p>
+
+<div class="btn-container">
+  <a href="{{ invite_url }}" class="btn-primary" target="_blank" rel="noopener noreferrer">
+    Accept Invitation
+  </a>
+</div>
+
+<p style="font-size: 13px; color: #64748b; margin-top: 24px;">
+  If you already have an account, sign in to switch directly into this organization.
+</p>
+{% endblock %}

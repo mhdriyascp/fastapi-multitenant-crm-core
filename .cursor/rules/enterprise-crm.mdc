@@ -1,0 +1,9 @@
+---
+description: "Apply the Enterprise CRM AI agent engineering standards in AGENTS.md to all project work."
+globs: "**/*"
+alwaysApply: true
+---
+
+Follow the repository-wide instructions in `AGENTS.md` for all project work. Treat that file as the single source of truth for architecture, tenant isolation, security, code quality, verification, and approval requirements.
+
+@AGENTS.md

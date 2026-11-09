@@ -1,0 +1,95 @@
+services:
+  # ---------------------------------------------------------------------------
+  # 1. PostgreSQL 16 with pgvector Extension
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: crm_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-crm_db}
+      POSTGRES_USER: ${POSTGRES_USER:-crm_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin@2k26}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crm_admin} -d ${POSTGRES_DB:-crm_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - crm_local_network
+
+  # ---------------------------------------------------------------------------
+  # 2. pgweb: Lightweight PostgreSQL Web GUI Browser
+  # ---------------------------------------------------------------------------
+  pgweb:
+    image: sosedoff/pgweb:latest
+    container_name: crm_pgweb
+    restart: unless-stopped
+    ports:
+      - "${PGWEB_PORT:-8081}:8081"
+    environment:
+      DATABASE_URL: "postgres://${POSTGRES_USER:-crm_admin}:${POSTGRES_PASSWORD:-admin@2k26}@postgres:5432/${POSTGRES_DB:-crm_db}?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - crm_local_network
+
+  # ---------------------------------------------------------------------------
+  # 3. Redis 7: Session, Rate Limiting & ARQ Background Queue Broker
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: crm_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - crm_local_network
+
+  # ---------------------------------------------------------------------------
+  # 4. Mailpit: Local SMTP Mock Server & Web Mailbox
+  # ---------------------------------------------------------------------------
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: crm_mailpit
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"   # SMTP server listening port
+      - "${MAILPIT_WEB_PORT:-8025}:8025"   # Web UI dashboard
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_DATABASE: ""                       # In-memory ephemeral storage for dev testing
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8025/api/v1/info"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - crm_local_network
+
+# -----------------------------------------------------------------------------
+# Persistent Volumes & Networks
+# -----------------------------------------------------------------------------
+volumes:
+  postgres_data:
+    name: crm_postgres_data
+  redis_data:
+    name: crm_redis_data
+
+networks:
+  crm_local_network:
+    name: crm_local_network
+    driver: bridge

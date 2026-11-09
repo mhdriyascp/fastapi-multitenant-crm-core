@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Your Verification Code - {{ project_name }}{% endblock %}
+
+{% block content %}
+<h2 style="margin: 0 0 16px 0; font-size: 20px; color: #0f172a;">Two-Factor Verification</h2>
+
+<p>Hello <strong>{{ user_name }}</strong>,</p>
+
+<p>A sign-in attempt was detected for your account. Please use the following 6-digit code to complete authentication:</p>
+
+<div style="background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
+  <span style="font-family: monospace, Courier, sans-serif; font-size: 34px; font-weight: 700; letter-spacing: 8px; color: #0f172a; display: inline-block;">
+    {{ otp_code }}
+  </span>
+</div>
+
+<p style="font-size: 13px; color: #64748b; margin: 0 0 8px 0;">
+  ⏱️ This code will expire in <strong>{{ expire_minutes }} minutes</strong>.
+</p>
+<p style="font-size: 13px; color: #dc2626; margin: 0;">
+  ⚠️ Never share this verification code with anyone. Our support team will never ask for it.
+</p>
+{% endblock %}
