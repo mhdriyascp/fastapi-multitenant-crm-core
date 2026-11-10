@@ -125,7 +125,7 @@ enterprise-crm/
 │   ├── main.py             # FastAPI application entry point
 │   ├── pyproject.toml      # Python dependencies and build system configuration
 │   ├── alembic/            # Database schema migration revisions
-│   ├── scripts/            # Operational scripts (e.g. seed_rbac.py)
+│   ├── scripts/seed/       # Initial setup seed commands (RBAC, masters, demo users)
 │   └── app/                # Application modules (api, core, models, schemas, services, workers)
 ├── frontend/               # Next.js 16 user interface
 │   ├── README.md           # Frontend application documentation

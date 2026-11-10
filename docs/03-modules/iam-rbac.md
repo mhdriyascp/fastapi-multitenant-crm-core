@@ -23,7 +23,7 @@ The RBAC dependency used by these routes is defined in `backend/app/api/dependen
 
 `Role.is_platform` identifies platform-control-plane roles separately from tenant roles. Platform roles remain global (`tenant_id IS NULL`) but cannot be used as tenant roles by the platform authorization dependency. Active operator assignments have a PostgreSQL partial unique index so a revoked assignment can later be restored. The permission catalog has unique permission codes.
 
-`backend/app/core/constants.py` declares permission tuples and role definitions, including `platform_admin`, `org_owner`, `org_admin`, `member`, and `viewer`. These constants are populated into the database by the seed script `backend/scripts/seed_rbac.py`; the script must be run explicitly and is not invoked at application startup. See [Seed data](../04-database/seed-data.md).
+`backend/app/core/constants.py` declares permission tuples and role definitions, including `platform_admin`, `org_owner`, `org_admin`, `member`, and `viewer`. These constants are populated by `backend/scripts/seed/rbac.py`; seeding must be run explicitly and is not invoked at application startup. See [Seed data](../04-database/seed-data.md).
 
 ## Permission resolution
 
@@ -48,7 +48,7 @@ The control plane has its own versioned namespace and documentation and is not m
 
 Every control-plane operation uses `RequirePlatformPermission`, which authenticates the global user without depending on tenant context and requires a verified MFA method. A platform superadmin (`users.is_platform_admin`) is explicitly granted the platform wildcard. Other users need an active `platform_user_roles` assignment and the requested code on one of its active `RolePermission` links. Tenant membership and tenant-scoped roles do not grant platform access.
 
-Platform permission codes are declared in `INITIAL_PERMISSIONS` and seeded with `uv run python scripts/seed_rbac.py`. Permission definitions are code-managed; the API exposes a read-only catalog. Superadmins can manage platform roles and grants in the dashboard. For a non-superadmin operator, role grants and role assignments are constrained to permissions the actor already holds, preventing privilege escalation through the control plane.
+Platform permission codes are declared in `INITIAL_PERMISSIONS` and seeded with `uv run python -m scripts.seed.rbac` (or as part of `uv run python -m scripts.seed`). Permission definitions are code-managed; the API exposes a read-only catalog. Superadmins can manage platform roles and grants in the dashboard. For a non-superadmin operator, role grants and role assignments are constrained to permissions the actor already holds, preventing privilege escalation through the control plane.
 
 | Method | Path | Permission | Purpose |
 |---|---|---|---|
@@ -83,6 +83,29 @@ The route and service currently use internal UUID membership and role identifier
 
 Tenant v2 does not yet expose member routes. Shared authentication remains under `/auth/*`, and shared health remains under `/health`.
 
+## Permission-filtered navigation
+
+The global `menus` catalog stores hierarchical navigation items, including
+`parent_id`, `path`, `icon`, `is_active`, and `sort_order`. `menu_permissions`
+links menu items to canonical permission codes. The authenticated endpoint
+`GET /api/v1/navigation/menus/` returns an ordered tree filtered using the
+effective permissions already resolved from the caller's active tenant roles.
+
+A menu item with no permission links is visible to every authenticated caller.
+When one or more permissions are linked, the item is visible when the caller
+has any of them. A visible child keeps its active ancestors in the tree as
+containers. Wildcard platform administrators see all active menu items. Sort
+sibling items by `sort_order`, with title and code as stable tie-breakers.
+This only controls navigation visibility; protected API operations must still
+enforce their own permission dependencies.
+
+The menu migration is attached to the CRM migration revision so applying it
+does not apply the separate ERP migration. It is labelled as the `navigation`
+branch; on a database intentionally kept before ERP, apply it with
+`uv run alembic upgrade navigation@head`. The application migration graph
+therefore has separate navigation and ERP heads until those branches are
+intentionally reconciled.
+
 ## Member removal behavior
 
 `MemberService.remove_member` performs a soft-delete:
@@ -99,7 +122,7 @@ Tenant v2 does not yet expose member routes. Shared authentication remains under
 
 - `MemberService` currently contains direct SQLAlchemy statements even though `MemberRepository` exists; repository adoption is incomplete. Domain exceptions (`EntityNotFoundException`, `EntityConflictException`, `BusinessRuleViolationException`, `PermissionDeniedException`) are used instead of `HTTPException` for service-level failures.
 - `RequirePermission` is attached to the five member endpoints, but not every route in the application has an explicit permission dependency. For example, `/auth/mfa/email/toggle` only depends on the authenticated context.
-- Role and permission constants are seeded by `backend/scripts/seed_rbac.py`, which must be run explicitly; there is no automatic startup seeding.
+- Role and permission constants are seeded by `backend/scripts/seed/rbac.py`, which must be run explicitly; there is no automatic startup seeding.
 - Tenant member APIs and the platform control plane have different authorization dependencies; do not use tenant `RequirePermission` as a substitute for `RequirePlatformPermission`.
 - The platform control plane does not provide payment processing, plan-to-feature enforcement in tenant business services, invitation/provisioning, or secret/infrastructure configuration management.
 - This document describes the current guard behavior, not a comprehensive security audit. Verify tenant scope and authorization separately for any new endpoint or query.
@@ -110,7 +133,7 @@ Tenant v2 does not yet expose member routes. Shared authentication remains under
 - Context/guard: `backend/app/api/dependencies/auth.py`
 - Service: `backend/app/services/member_service.py`
 - Constants: `backend/app/core/constants.py`
-- Seed script: `backend/scripts/seed_rbac.py`
+- Seed package: `backend/scripts/seed/`
 - Enums: `backend/app/core/enums.py`
 - Models: `role.py`, `permission.py`, `role_permission.py`, `tenant_membership.py`, `membership_role.py`, `role_assignment_audit.py`
 - Schema/migration overview: [Database and migrations](../04-database/database-and-migrations.md)

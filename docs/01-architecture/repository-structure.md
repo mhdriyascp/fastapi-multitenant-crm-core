@@ -26,7 +26,7 @@ The backend is organized as a modular monolith. API routers are the HTTP boundar
 - Shared API dependencies are grouped under `backend/app/api/dependencies/` for authentication and database sessions.
 - `backend/app/services/` contains authentication, member, and platform services. Several services still issue SQLAlchemy queries directly; repository adoption is partial.
 - SQLAlchemy models are in `backend/app/models/`, and Alembic migrations are in `backend/alembic/`.
-- `backend/scripts/seed_rbac.py` is a standalone CLI script that idempotently seeds permissions and system roles into the database. It must be run explicitly after migrations; it is not invoked at application startup.
+- `backend/scripts/seed/` contains explicit, idempotent database seed commands. Run `uv run python -m scripts.seed` after migrations for RBAC, master data, menus, and local demo accounts, or `uv run python -m scripts.seed.rbac` for RBAC synchronization only. Seeding is not invoked at application startup.
 - The frontend is a Next.js application rooted at `frontend/src/app/`.
 - `compose.yaml` starts PostgreSQL, pgweb, Redis, and Mailpit for local infrastructure; it does not start the API or frontend.
 - The frontend root page currently displays API/database/Redis health rather than CRM workflows.

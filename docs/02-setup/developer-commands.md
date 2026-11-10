@@ -17,16 +17,20 @@ uv run pytest
 
 No backend test files were present when this guide was written; add focused tests with new behavior. Run `uv run pytest <test-path>` for targeted validation where tests exist.
 
-## RBAC seed
+## Initial setup seed
 
-After running migrations, seed permissions and system roles into the database:
+After running migrations and configuring the demo-user passwords in
+`backend/.env`, seed RBAC, master data, menus, and demo users:
 
 ```sh
 cd backend
-uv run python scripts/seed_rbac.py
+uv run python -m scripts.seed
 ```
 
-This script is idempotent and safe to re-run. It inserts missing permissions and roles, syncs changed metadata, and prunes obsolete role→permission links. See [seed data](../04-database/seed-data.md) for details and production-environment guidance.
+The seed is idempotent and safe to re-run. Use `--without-demo-users` when
+account creation is not needed. To synchronize only permissions and system
+roles, run `uv run python -m scripts.seed.rbac`. See
+[seed data](../04-database/seed-data.md) for details and environment guidance.
 
 ## ARQ email worker
 

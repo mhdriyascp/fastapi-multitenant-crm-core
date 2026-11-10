@@ -24,7 +24,7 @@ The repository is a full-stack monorepo. The backend is a FastAPI application or
 | `backend/app/core/` | Settings, database, security, enums, exceptions, Redis/ARQ, email, and constants | Shared platform services and configuration |
 | `backend/app/workers/` | Background workers | ARQ email-outbox worker |
 | `backend/alembic/` | Database migrations | Initial IAM schema, email outbox, and platform control-plane tables |
-| `backend/scripts/` | Operational scripts | `seed_rbac.py` — idempotent RBAC permission and role seeder |
+| `backend/scripts/seed/` | Initial setup seed package | RBAC, master data, navigation menus, and local demo-user seed commands |
 | `frontend/src/app/` | Next.js App Router UI | Root page checks and displays backend/PostgreSQL/Redis health; this is not yet a full CRM interface |
 | `compose.yaml` | Local infrastructure containers | PostgreSQL, pgweb, Redis, and Mailpit; it does not start the API or frontend |
 | `docs/` | Project documentation | Architecture decisions, module guides, and operations guides |
@@ -45,11 +45,11 @@ These routes are not duplicated beneath `/api/v1` or `/api/v2`.
 
 ### Tenant IAM/RBAC API v1
 
-Tenant IAM member operations are implemented in `backend/app/api/tenant/v1/endpoints/members.py` and mounted at `/api/v1/iam/members/*`. They use the same authorization dependencies and service layer as other tenant v1 routes. No member routes are mounted outside a tenant version; version 2 does not yet expose member routes.
+Tenant IAM member operations are implemented in `backend/app/api/tenant/v1/endpoints/members.py` and mounted at `/api/v1/iam/members/*`. Core and CRM master-data operations are mounted at `/api/v1/master-data/*`; shared catalogs are read-only to tenant callers and are administered through `/platform/v1/master-data/shared/*`. See [master-data APIs](../03-modules/master-data-apis.md). Version 2 does not yet expose tenant endpoints.
 
 ### API v1 — `/api/v1`
 
-`backend/app/api/tenant/v1/router.py` is mounted at `settings.API_V1_STR` (default `/api/v1`). It currently registers tenant member operations.
+`backend/app/api/tenant/v1/router.py` is mounted at `settings.API_V1_STR` (default `/api/v1`). It registers tenant member and core/CRM master-data operations.
 
 ### API v2 — `/api/v2`
 
@@ -57,7 +57,7 @@ Tenant IAM member operations are implemented in `backend/app/api/tenant/v1/endpo
 
 ### Platform control plane — `/platform/v1`
 
-`backend/app/api/platform/v1/router.py` assembles platform-only operations from `endpoints/iam.py`, `operators.py`, `tenants.py`, `plans.py`, and `audit.py`. It is not nested under tenant API versions. All routes authenticate the global identity independently of tenant context and require verified MFA; tenant membership permissions do not authorize platform operations. Suspended/cancelled tenants lose tenant permissions without blocking account-level authentication or platform recovery.
+`backend/app/api/platform/v1/router.py` assembles platform-only operations from `endpoints/iam.py`, `operators.py`, `tenants.py`, `plans.py`, `audit.py`, and `master_data.py`. It is not nested under tenant API versions. All routes authenticate the global identity independently of tenant context and require verified MFA; tenant membership permissions do not authorize platform operations. Suspended/cancelled tenants lose tenant permissions without blocking account-level authentication or platform recovery.
 
 - ReDoc: `/platform/v1/redoc`; Scalar: `/scalar/platform/v1`; schema: `/openapi/platform/v1.json`.
 - Its schema includes shared authentication and `/health` plus only `/platform/v1/*` operations.
@@ -95,7 +95,7 @@ This is the current flow; it does not establish that all service/repository sepa
 - **Platform administration:** isolated operator RBAC, tenant lifecycle/settings, plan metadata and assignment, and privileged audit events. It does not provide billing/payment processing or operator invitations. See [IAM and RBAC](../03-modules/iam-rbac.md).
 - **Email:** invitation, password-reset, and MFA email outbox; ARQ enqueue; worker dispatch; Jinja templates; and SMTP. See [Email outbox](../03-modules/email-and-background-work.md).
 - **Database:** async SQLAlchemy session management and Alembic migrations. See [Database and migrations](../04-database/database-and-migrations.md).
-- **RBAC seed:** `backend/scripts/seed_rbac.py` populates permissions and system roles; must be run explicitly after migration. See [Seed data](../04-database/seed-data.md).
+- **Initial setup seed:** `backend/scripts/seed/` contains the explicit seed package. Run `uv run python -m scripts.seed` after migrations for initial setup, or `uv run python -m scripts.seed.rbac` for RBAC only. See [Seed data](../04-database/seed-data.md).
 
 ## Intended boundaries versus current gaps
 
@@ -103,7 +103,7 @@ The engineering direction is to keep HTTP handling in routers, business workflow
 
 - Repository usage is partial: the platform administration service uses `PlatformAdminRepository`; `AuthService` and `MemberService` still query through `AsyncSession` directly.
 - Domain exceptions (`EntityNotFoundException`, `EntityConflictException`, `BusinessRuleViolationException`, `PermissionDeniedException`, `AuthenticationException`) are defined in `app.core.exceptions` and raised by services. `register_exception_handlers` formats them into standardized JSON error responses.
-- `INITIAL_PERMISSIONS` and `SYSTEM_ROLES` constants are seeded by `backend/scripts/seed_rbac.py`, which must be invoked explicitly; there is no startup-time seeding.
+- `INITIAL_PERMISSIONS` and `SYSTEM_ROLES` constants are synchronized by `backend/scripts/seed/rbac.py` as part of the complete initial-setup seed or through the RBAC-only module command; there is no startup-time seeding.
 - Current APIs expose internal UUIDs in some request/response paths (for example membership IDs and workspace IDs in the workspace listing); the public-ID-only standard is not consistently implemented.
 
 These are documentation of current implementation gaps, not authorization to migrate them as part of an unrelated task.

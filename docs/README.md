@@ -27,6 +27,7 @@ flowchart LR
     MO --> MO1["identity-and-authentication.md"]
     MO --> MO2["iam-rbac.md"]
     MO --> MO4["email-and-background-work.md"]
+    MO --> MO5["master-data-apis.md"]
 
     DB --> DB1["database-and-migrations.md"]
     DB --> DB2["seed-data.md"]
@@ -67,6 +68,7 @@ flowchart LR
 |---|---|
 | [Identity and authentication](03-modules/identity-and-authentication.md) | Registration, login, MFA, password reset, session management |
 | [IAM and RBAC implementation](03-modules/iam-rbac.md) | Member management, role assignment, audit trail |
+| [Core and CRM master-data APIs](03-modules/master-data-apis.md) | Tenant CRUD and platform-managed global reference catalogs |
 | [Email outbox and background worker](03-modules/email-and-background-work.md) | Transactional email system, ARQ worker, delivery guarantees |
 
 ---
@@ -76,7 +78,7 @@ flowchart LR
 | Document | Description |
 |---|---|
 | [Database model and migrations](04-database/database-and-migrations.md) | Persisted models, Alembic migration history, identifier and lifecycle patterns |
-| [Seed data and RBAC seeder](04-database/seed-data.md) | `seed_rbac.py` usage, idempotency, and operational guidance |
+| [Seed data and RBAC seeder](04-database/seed-data.md) | Initial setup seed package, demo accounts, and RBAC-only command |
 
 ---
 
@@ -108,7 +110,7 @@ flowchart TD
     end
 
     subgraph TODO["🔲 Not Yet Implemented"]
-        C1["RBAC auto-seeding\nMust run seed_rbac.py manually"]
+        C1["Initial setup seeding\nMust run scripts.seed manually"]
         C2["Outbox sweeper\nStalled PENDING rows not auto-recovered"]
         C3["Frontend CRM UI\nCurrently a health-status page only"]
     end

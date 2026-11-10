@@ -111,7 +111,7 @@ flowchart LR
 
     BE --> MAIN["📄 main.py\nApp factory & routes"]
     BE --> ALM["📁 alembic/\nSchema migrations"]
-    BE --> SCR["📁 scripts/\nseed_rbac.py"]
+    BE --> SCR["📁 scripts/seed/\nRBAC · master data · demo users"]
     BE --> APP["📁 app/"]
 
     APP --> API["📁 api/\nRouters & dependencies"]
@@ -149,7 +149,8 @@ docker compose up -d
 cd backend
 uv sync                                                           # Install dependencies
 uv run alembic upgrade head                                       # Apply database migrations
-uv run python scripts/seed_rbac.py                                # Seed permissions & system roles
+# Configure six distinct SEED_*_PASSWORD values in backend/.env before seeding
+uv run python -m scripts.seed                                     # Seed initial setup data
 uv run uvicorn main:app --reload                                  # Launch API on http://localhost:8000
 ```
 
@@ -245,7 +246,7 @@ The repository features full topic-based documentation in [`docs/`](docs/README.
 | **Modules** | [IAM & RBAC Implementation](docs/03-modules/iam-rbac.md) | Member administration, role management, and audit trails |
 | **Modules** | [Email Outbox & Background Worker](docs/03-modules/email-and-background-work.md) | Transactional outbox staging and ARQ dispatcher |
 | **Database** | [Database Models & Migrations](docs/04-database/database-and-migrations.md) | SQLAlchemy schemas, Alembic revisions, lifecycle rules |
-| **Database** | [RBAC Seed Data Status](docs/04-database/seed-data.md) | `seed_rbac.py` idempotent synchronization process |
+| **Database** | [Seed Data Status](docs/04-database/seed-data.md) | Initial setup and RBAC seed commands |
 | **AI Standards** | [AI Agent Instructions](docs/05-ai-and-standards/README.md) | Agent entry points and engineering rules |
 
 ---

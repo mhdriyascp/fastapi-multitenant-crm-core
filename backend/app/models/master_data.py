@@ -112,6 +112,7 @@ class Branch(TenantMasterData):
 
     __tablename__ = "branches"
     __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_branches_tenant_id_id"),
         Index(
             "uq_branches_tenant_code_active",
             "tenant_id",
@@ -144,6 +145,7 @@ class Department(TenantMasterData):
 
     __tablename__ = "departments"
     __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_departments_tenant_id_id"),
         Index(
             "uq_departments_tenant_code_active",
             "tenant_id",
@@ -318,6 +320,7 @@ class FiscalYear(TenantMasterData):
 
     __tablename__ = "fiscal_years"
     __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_fiscal_years_tenant_id_id"),
         CheckConstraint("ends_on >= starts_on", name="ck_fiscal_year_dates"),
         Index(
             "uq_fiscal_years_tenant_code_active",
@@ -511,6 +514,7 @@ class TaxRate(TenantMasterData):
 
     __tablename__ = "tax_rates"
     __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_tax_rates_tenant_id_id"),
         CheckConstraint("rate >= 0 AND rate <= 100", name="ck_tax_rates_rate_percent"),
         CheckConstraint(
             "valid_to IS NULL OR valid_to >= valid_from",

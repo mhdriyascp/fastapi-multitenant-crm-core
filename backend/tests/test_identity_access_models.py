@@ -47,7 +47,6 @@ def test_team_membership_requires_matching_tenant_team_and_user_membership() -> 
         "tenant_memberships.user_id",
     ) in composite_targets
     assert any(
-        index.name == "uq_team_members_team_user_active"
-        and index.unique
+        index.name == "uq_team_members_team_user_active" and index.unique
         for index in team_members.indexes
     )

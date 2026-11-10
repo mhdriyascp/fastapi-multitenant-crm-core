@@ -9,6 +9,7 @@ from uuid_utils.compat import uuid7
 from app.models.base import Base
 
 if TYPE_CHECKING:
+    from app.models.menu import MenuPermission
     from app.models.role_permission import RolePermission
 
 
@@ -96,6 +97,11 @@ class Permission(Base):
     # ---------------------------------------------------------------------------
     role_permissions: Mapped[list["RolePermission"]] = relationship(
         "RolePermission",
+        back_populates="permission",
+        cascade="all, delete-orphan",
+    )
+    menu_permissions: Mapped[list["MenuPermission"]] = relationship(
+        "MenuPermission",
         back_populates="permission",
         cascade="all, delete-orphan",
     )

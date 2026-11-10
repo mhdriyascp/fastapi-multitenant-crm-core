@@ -33,7 +33,7 @@ Use the asynchronous PostgreSQL URL expected by SQLAlchemy/asyncpg in `DATABASE_
 - **Documentation ordering**: Each versioned ReDoc and Scalar reference lists that version's health-readiness endpoint first. It checks PostgreSQL, Redis, and SMTP and reports `200 healthy` only when all three are reachable; otherwise it returns `503 degraded`.
 - **Health endpoint**: `GET /health` runs PostgreSQL, Redis, and SMTP readiness checks, returning `503` if any dependency is unavailable. It is shown once at the top of both versioned API documentation pages.
 - **Email worker**: `backend/app/workers/email_worker.py`, configured through ARQ (`WorkerSettings`). Run with `uv run worker backend.app.workers.email_worker.WorkerSettings` from `backend/`.
-- **RBAC seed**: `backend/scripts/seed_rbac.py` populates permissions and system roles, including the code-defined `platform.*` permission catalog; run after migrations and whenever `constants.py` changes.
+- **Initial setup seed**: `backend/scripts/seed/` contains the complete setup and RBAC-only seed commands. Run `uv run python -m scripts.seed` after migrations; it also creates local demo users using the configured `SEED_*_PASSWORD` values. Use `uv run python -m scripts.seed.rbac` to synchronize RBAC alone.
 - **Frontend**: `frontend/`, Next.js App Router. The current homepage requests `${NEXT_PUBLIC_API_URL}/health`, defaulting to `http://localhost:8000`.
 
 ## Tooling

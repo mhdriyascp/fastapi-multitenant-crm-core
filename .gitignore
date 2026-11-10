@@ -42,3 +42,11 @@ coverage/
 # Database / Local volumes
 postgres_data/
 redis_data/
+
+# CRM/ERP master-data work in progress
+/backend/alembic/versions/2026_11_10_1200-c31d4f7a8e52_crm_masters.py
+/backend/alembic/versions/2026_11_10_1300-e72b14c6a903_erp_master_data.py
+/backend/app/models/crm.py
+/backend/app/models/erp.py
+/backend/tests/test_crm_models.py
+/backend/tests/test_erp_models.py

@@ -142,7 +142,10 @@ backend/
 │   ├── env.py                     # Async Alembic execution environment
 │   └── versions/                  # Versioned DDL migration scripts
 ├── scripts/
-│   └── seed_rbac.py               # Idempotent RBAC seeder (permissions & system roles)
+│   └── seed/                      # Initial setup seed package
+│       ├── __main__.py            # Complete initial-setup CLI
+│       ├── master_data.py         # Shared/tenant masters, menus, demo users
+│       └── rbac.py                # RBAC synchronization
 └── app/
     ├── api/
     │   ├── router.py              # Top-level router assembly
@@ -224,14 +227,15 @@ From the project root:
 docker compose up -d
 ```
 
-### 4. Apply Database Migrations & Seed RBAC
+### 4. Apply Migrations & Seed Initial Setup
 
 ```sh
 # Apply Alembic schema migrations
 uv run alembic upgrade head
 
-# Seed permissions and system roles (idempotent)
-uv run python scripts/seed_rbac.py
+# Configure six distinct SEED_*_PASSWORD values in .env before seeding
+# Seed RBAC, master data, menus, and demo users
+uv run python -m scripts.seed
 ```
 
 ### 5. Launch Development Server
@@ -378,8 +382,11 @@ uv run alembic current
 uv run alembic upgrade head
 uv run alembic revision --autogenerate -m "description_of_change"
 
-# RBAC Seed Synchronization
-uv run python scripts/seed_rbac.py
+# Complete initial setup
+uv run python -m scripts.seed
+
+# RBAC only
+uv run python -m scripts.seed.rbac
 ```
 
 ---

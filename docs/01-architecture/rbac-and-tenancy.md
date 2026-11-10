@@ -146,7 +146,7 @@ flowchart TD
 
 ## 📋 Predefined System Roles & Permissions Matrix
 
-Declared in `backend/app/core/constants.py` and synchronized by `backend/scripts/seed_rbac.py`:
+Declared in `backend/app/core/constants.py` and synchronized by `backend/scripts/seed/rbac.py`:
 
 | Role Code | Role Name | System? | Tenant Scope | Key Permissions |
 |---|---|---|---|---|
@@ -195,7 +195,7 @@ sequenceDiagram
 4. **Role Code Partial Indexes**:
    Unique indexes on `roles.code` partition by tenant scope (`WHERE tenant_id IS NULL` vs `WHERE tenant_id IS NOT NULL`), but do not include a `deleted_at IS NULL` predicate.
 5. **No Automatic Startup Seeding**:
-   Permissions and roles must be seeded by executing `uv run python scripts/seed_rbac.py` manually after schema migrations.
+   Permissions and roles must be seeded explicitly after schema migrations with `uv run python -m scripts.seed` (complete setup) or `uv run python -m scripts.seed.rbac` (RBAC only).
 
 ---
 
